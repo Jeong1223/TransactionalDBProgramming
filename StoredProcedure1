@@ -1,0 +1,149 @@
+/*
+DBAS 4002-700 "Assignment 2"
+Jeong Eun Jang (W0451032)
+
+===============================================================
+Part 1 "DDL"
+===============================================================*/
+
+-- Create a table named [VitalsType]
+
+USE COVID_Backend_GroupH
+GO 
+
+CREATE TABLE VitalsType (
+VitalsTypeId int PRIMARY KEY,  
+VitalsTypeName varchar(255)  --HR, Temp, MAP, SBP, DBP
+);
+
+--  Create a table named [Vitals]
+
+CREATE TABLE Vitals (
+PatId int NOT NULL,   
+VitalsTypeId int NOT NULL,  
+VitalsDT datetime NOT NULL, 
+VitalsValue float NOT NULL,  
+CONSTRAINT PK_Vitals PRIMARY KEY CLUSTERED (PatId, VitalsTypeId, VitalsDT),
+CONSTRAINT FK_PatId FOREIGN KEY (PatId) REFERENCES Patient(PatId),
+CONSTRAINT FK_VitalsTypeId FOREIGN KEY (VitalsTypeId) REFERENCES VitalsType(VitalsTypeId)
+)
+GO
+
+-- Insert the following patients into your Patient table
+
+INSERT INTO Patient (PatId, PatFName, PatLName, PatHCN) VALUES (1, 'James', 'Brown', '757234587')
+INSERT INTO Patient (PatId, PatFName, PatLName, PatHCN) VALUES (2, 'Marvin', 'Gaye', '75777761')
+
+-- Insert Into [VitalsType] the following values
+
+INSERT INTO VitalsType VALUES(1,'HR');
+INSERT INTO VitalsType VALUES(2,'Temp');
+INSERT INTO VitalsType VALUES(3,'MAP');
+INSERT INTO VitalsType VALUES(4,'SBP');
+INSERT INTO VitalsType VALUES(5,'DBP');
+
+/*
+===================================================
+Part 2. Stored Procedure
+===================================================*/
+
+--2.1. Create a stored procedure 
+
+CREATE PROCEDURE spVitals
+AS
+IF NOT EXISTS(SELECT [name] FROM sys.tables WHERE [name] = 'Vitals')
+BEGIN
+CREATE TABLE [dbo].[Vitals](
+	[PatId] int NOT NULL,
+	[VitalsTypeId] int NOT NULL,
+	[VitalsDT] datetime NOT NULL,
+	[VitalsValue] float NOT NULL
+	CONSTRAINT PK_Vitals PRIMARY KEY CLUSTERED (PatId, VitalsTypeId, VitalsDT),
+	CONSTRAINT FK_PatId FOREIGN KEY (PatId) REFERENCES Patient(PatId),
+	CONSTRAINT FK_VitalsTypeId FOREIGN KEY (VitalsTypeId) REFERENCES VitalsType(VitalsTypeId)
+)
+END
+
+-- Execute the stored procedure
+EXEC spVitals
+
+-- 2.2. Insert data
+
+-- James Brown	01-Jan-20
+INSERT INTO Vitals VALUES('1', '1', '2020-01-02 00:00:00', '85'); 
+INSERT INTO Vitals VALUES('1', '2', '2020-01-02 00:00:00', '36.1');
+INSERT INTO Vitals VALUES('1', '4', '2020-01-02 00:00:00', '134');
+INSERT INTO Vitals VALUES('1', '5', '2020-01-02 00:00:00', '91');
+
+-- Marvin Gaye	02-Jan-20
+INSERT INTO Vitals VALUES('2', '1', '2020-01-02 00:00:00', '67'); 
+INSERT INTO Vitals VALUES('2', '2', '2020-01-02 00:00:00', '37.5');
+INSERT INTO Vitals VALUES('2', '4', '2020-01-02 00:00:00', '145');
+INSERT INTO Vitals VALUES('2', '5', '2020-01-02 00:00:00', '87');
+
+-- James Brown	03-Jan-20
+INSERT INTO Vitals VALUES('1', '1', '2020-01-03 00:00:00', '81'); 
+INSERT INTO Vitals VALUES('1', '2', '2020-01-03 00:00:00', '38.1');
+INSERT INTO Vitals VALUES('1', '4', '2020-01-03 00:00:00', '154');
+INSERT INTO Vitals VALUES('1', '5', '2020-01-03 00:00:00', '97');
+
+-- Marvin Gaye	04-Jan-20
+INSERT INTO Vitals VALUES('2', '1', '2020-01-04 00:00:00', '72'); 
+INSERT INTO Vitals VALUES('2', '2', '2020-01-04 00:00:00', '37.5');
+INSERT INTO Vitals VALUES('2', '4', '2020-01-04 00:00:00', '157');
+INSERT INTO Vitals VALUES('2', '5', '2020-01-04 00:00:00', '88');
+
+
+-- 2.3. Update the [MAP] column(3) in the [Vitals] table based on the following formula:
+-- MAP = (SBP + 2* (DBP)) /3
+
+BEGIN TRY
+	INSERT INTO Vitals
+	SELECT sbp.PatId, 3 as VitalsTypeId, dbp.VitalsDT, Round(((sbp.SBP+(2*dbp.DBP))/3), 2) as MAP FROM
+	(
+	(SELECT PatId, VitalsDT, VitalsValue as SBP
+	FROM Vitals WHERE VitalsTypeId=4) as sbp
+	INNER JOIN
+	(SELECT PatId, VitalsDT, VitalsValue as DBP
+	FROM Vitals WHERE VitalsTypeId=5) as dbp
+	ON sbp.PatId = dbp.PatId and sbp.VitalsDT = dbp.VitalsDT
+	)
+	RETURN
+END TRY
+BEGIN CATCH
+	PRINT 'In catch block';
+	THROW;
+END CATCH;
+
+-- 2.4. Using a Cursor loop  through the [Vitals] table and print out the PatientName and the MAP for each day, 
+-- sorted by Patient Name and Date.
+
+DECLARE @PatientName as Nvarchar(256)
+DECLARE @Date as Nvarchar(50)
+DECLARE @MAP as Nvarchar(50)
+
+DECLARE Patient_Cursor CURSOR FOR
+SELECT pinfo.PatientName, map.VitalsDT, map.VitalsValue FROM 
+(
+	(SELECT PatId, VitalsDT, VitalsValue FROM Vitals WHERE VitalsTypeID=3)map
+	INNER JOIN
+	(SELECT PatId, CONCAT(PatFName, ' ', PatLName) as PatientName FROM Patient)pinfo
+	ON map.PatId = pinfo.PatId
+)
+BEGIN TRY
+	OPEN Patient_Cursor;
+	FETCH NEXT FROM Patient_Cursor INTO @PatientName, @Date, @MAP;
+	While @@FETCH_STATUS = 0
+	Begin
+		PRINT @PatientName + '		' + @Date + '		' + @MAP
+		FETCH NEXT FROM Patient_Cursor INTO @PatientName, @Date, @MAP;
+	END;
+	CLOSE Patient_Cursor;
+	DEALLOCATE Patient_Cursor;
+	RETURN
+END TRY
+BEGIN CATCH
+	PRINT 'In catch block';
+	THROW;
+END CATCH;
+
