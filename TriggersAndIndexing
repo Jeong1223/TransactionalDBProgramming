@@ -1,0 +1,26 @@
+--DML trigger
+
+CREATE TRIGGER UpdateTimestamp ON dbo.Symptom  	
+AFTER INSERT,
+UPDATE  
+AS  
+
+UPDATE dbo.Symptom
+SET SympTimestamp = GETDATE()
+FROM Inserted i
+WHERE dbo.Symptom.sympId = i.sympId
+            
+   
+INSERT INTO Symptom (sympName, sympDesc, sympWHO)  
+VALUES ('cough', 'cough', 0);  
+GO
+
+--Create NonClustered Index
+DROP INDEX [ncx_SOH_Index_Seek] ON [AdventureWorks2019].[Sales].[SalesOrderHeader];
+
+CREATE NONCLUSTERED INDEX [ncx_SOH_Index_Seek] on [AdventureWorks2019].[sales].[SalesOrderHeader]
+([SalesOrderNumber])
+Include ([TotalDue],[AccountNumber])
+
+SELECT [AccountNumber],[TotalDue]  FROM [AdventureWorks2019].[Sales].[SalesOrderHeader] 
+where SalesOrderNumber='SO43764'
