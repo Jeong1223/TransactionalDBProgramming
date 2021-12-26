@@ -1,3 +1,6 @@
+--Jeong Eun Jang
+--ICW3
+
 USE AdventureWorks2019
 GO
 
